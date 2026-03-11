@@ -1,0 +1,22 @@
+# Ignore Git metadata
+.git
+.gitignore
+
+# Ignore Documentation
+README.md
+LICENSE
+
+# Ignore Scripts (they are not needed inside the image)
+build.ps1
+*.sh
+
+# Ignore OS files
+**/.DS_Store
+**/Thumbs.db
+
+# Do NOT ignore 'archives/' as Dockerfiles need to COPY from it.
+# However, we exclude any temporary extraction folders if they exist locally.
+out/
+final/
+s1/
+s2/

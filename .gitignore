@@ -1,0 +1,21 @@
+# Archives (Distributions)
+archives/*.zip
+archives/*.rar
+archives/*.7z
+
+# Tools (Distributions)
+tools/*
+
+# Docker temporary files
+.docker/
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Build scripts local outputs
+/final/
+/out/
+/s1/
+/s2/
