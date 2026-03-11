@@ -4,7 +4,10 @@ archives/*.rar
 archives/*.7z
 
 # Tools (Distributions)
-tools/*
+tools/*.tgz
+tools/*.zip
+tools/*.rar
+tools/*.7z
 
 # Docker temporary files
 .docker/
