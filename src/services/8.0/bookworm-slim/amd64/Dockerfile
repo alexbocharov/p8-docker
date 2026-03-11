@@ -32,7 +32,7 @@ RUN pwsh -Command " \
                             if (\$prop.Value.Count -gt 1) { \
                                 \$prop.Value = @(\$prop.Value[0]); \
                             } \
-                            # Рекурсия для элементов внутри оставшегося объекта в массиве \
+                            # Function to recursively trim arrays to their first element \
                             \$prop.Value | ForEach-Object { Trim-Arrays \$_ }; \
                         } \
                         elseif (\$prop.Value -is [System.Management.Automation.PSCustomObject]) { \
