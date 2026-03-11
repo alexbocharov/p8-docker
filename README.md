@@ -5,7 +5,8 @@ Automated Docker image construction engine for **Parus 8 Web Client** and **Micr
 ## ⚖️ Legal Disclaimer
 
 > [!IMPORTANT]  
-> This repository **does not contain** any Parus 8 software binaries or distribution packages. 
+> This repository **does not contain** any Parus 8 software binaries or distribution packages.
+> This repository **does not distribute** CryptoPro CSP or any of its components.
 
 - The source archives (`webcore.zip` and `extra.zip`) are the **exclusive property of the copyright holder**.
 - The source archive `linux-amd64_deb.tgz` are the **exclusive property of the copyright holder**.
