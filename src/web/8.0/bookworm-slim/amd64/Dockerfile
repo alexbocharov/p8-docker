@@ -56,22 +56,16 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends libicu72 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install CryptoPro CSP dependencies (Required for cryptographic operations in Parus 8)
-COPY tools /tmp/tools 
-RUN cd /tmp/tools && \
-    tar -xzf linux-amd64_deb.tgz && \
-    linux-amd64_deb/install.sh && \
-    cd /bin && \
-    ln -s /opt/cprocsp/bin/amd64/certmgr && \
-    ln -s /opt/cprocsp/bin/amd64/cpverify && \
-    ln -s /opt/cprocsp/bin/amd64/cryptcp && \
-    ln -s /opt/cprocsp/bin/amd64/csptest && \
-    ln -s /opt/cprocsp/bin/amd64/csptestf && \
-    ln -s /opt/cprocsp/bin/amd64/der2xer && \
-    ln -s /opt/cprocsp/bin/amd64/inittst && \
-    ln -s /opt/cprocsp/bin/amd64/wipefile && \
-    ln -s /opt/cprocsp/sbin/amd64/cpconfig && \
-    rm -rf /tmp/tools
+# Install CryptoPro CSP (Optional: will be skipped if archives/tools are missing)
+COPY tools/linux-amd64_deb.tgz* /tmp/tools/
+RUN if [ -f /tmp/tools/linux-amd64_deb.tgz ]; then \
+        cd /tmp/tools && tar -xzf linux-amd64_deb.tgz && \
+        linux-amd64_deb/install.sh && \
+        # Create symlinks for common CryptoPro utilities
+        for util in certmgr cpverify cryptcp csptest csptestf der2xer inittst wipefile; do \
+            ln -s /opt/cprocsp/bin/amd64/$util /usr/bin/$util; done && \
+        ln -s /opt/cprocsp/sbin/amd64/cpconfig /usr/sbin/cpconfig; \
+    fi && rm -rf /tmp/tools
 
 # Copy the extracted binaries from the extractor stage
 COPY --from=extractor /tmp/s2/p8web/p8webcore/linux-x64 ./
@@ -81,13 +75,20 @@ RUN ln -s /opt/cprocsp/lib/amd64/libcapi20.so crypt32.dll && \
     ln -s /opt/cprocsp/lib/amd64/libcapi10.so advapi32.dll && \
     ln -s /opt/cprocsp/lib/amd64/libcapi10.so kernel32.dll
 
+# Copy and prepare the universal entrypoint script
+COPY scripts/entrypoint.sh ./entrypoint.sh
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
+
 # Ensure the main binary has execute permissions
 RUN chmod +x ./WebClientCore
 
-# .NET 8 Environment Configuration
-# Using port 8080 as the modern .NET 8 standard
+# Environment Configuration
 ENV ASPNETCORE_HTTP_PORTS=8080
+ENV CPROCSP_LICENSE=""
 EXPOSE 8080
 
-# Run the binary directly (Self-contained mode)
-ENTRYPOINT ["./WebClientCore"]
+# Set the entrypoint to handle initialization (e.g., license activation)
+ENTRYPOINT ["./entrypoint.sh"]
+
+# Set the default binary to execute
+CMD ["./WebClientCore"]
