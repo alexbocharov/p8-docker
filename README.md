@@ -23,9 +23,9 @@ The repository follows a hierarchical structure for better scalability and multi
 ├── tools/                  # [Drop Zone] Place linux-amd64_deb.tgz here
 ├── src/
 │   ├── web/                # Web Client product logic
-│   │   └── 8.0/bookworm/amd64/Dockerfile
+│   │   └── 8.0/bookworm-slim/amd64/Dockerfile
 │   └── service/            # Microservices product logic
-│       └── 8.0/bookworm/amd64/Dockerfile
+│       └── 8.0/bookworm-slim/amd64/Dockerfile
 ├── build.ps1               # Unified Build Engine (PowerShell Core)
 ├── .gitignore              # Prevents binaries from being committed to Git
 └── .dockerignore           # Optimizes Docker build context by excluding junk
