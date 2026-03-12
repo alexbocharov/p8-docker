@@ -73,7 +73,7 @@ The engine supports two tagging strategies:
 | Microservices | `extra.zip` | `parus/service/[name]:8.5.6.1.20260212` | `parus/service/[name]:latest` |
 
 > [!NOTE]
-> If the -BuildDate parameter is omitted during execution, the image will be tagged only as :latest. If -BuildDate is provided, the engine creates both the specific versioned tag and the latest tag pointing to it.
+> If the `-BuildDate` parameter is omitted during execution, the image will be tagged only as `:latest`. If `-BuildDate` is provided, the engine creates both the specific versioned tag and the latest tag pointing to it.
 
 ## 🛠 Technical Implementation
 
