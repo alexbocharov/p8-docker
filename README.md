@@ -44,32 +44,36 @@ Place the following distribution files in the archives/ folder:
 
 The `build.ps1` script handles versioning, lowercase naming, and folder logic (prioritizing *Unix folders for Linux compatibility).
 
-**Build everything (Web + All Services):**
-
+**Build with specific version and date (tags as both `version.date` and `latest`):**
 ```pwsh
 ./build.ps1 -Version "8.5.6.1" -BuildDate "20260212" -Target "all"
 ```
 
-**Build only the Web Client:**
-
+**Build with latest tag only (omitting BuildDate):**
 ```pwsh
-./build.ps1 -Version "8.5.6.1" -BuildDate "20260212" -Target "web"
+./build.ps1 -Version "8.5.6.1" -Target "all"
 ```
 
 **Build a specific service (e.g., MqDocumentSigner):**
-
 ```pwsh
-./build.ps1 -Version "8.5.6.1" -BuildDate "20260212" -Target "MqDocumentSigner"
+./build.ps1 -Version "8.5.6.1" -Target "MqDocumentSigner"
 ```
 
 ## 🏗 Image Naming & Tagging
 
-Images are tagged using the format: `parus/[type]/[name]:[version].[date]`
+Images are tagged using the format: parus/[type]/[name]:[suffix].
 
-| Component | Source Archive | Target Docker Image Tag (Example) |
-|---|---|---|
-| Web Client | `webcore.zip` | `parus/web:8.5.6.1.20260212` |
-| Microservices | `extra.zip` | `parus/service/[name]:8.5.6.1.20260212` |
+The engine supports two tagging strategies:
+1. Full Tag: Combined `[version].[date]` (e.g., `8.5.6.1.20260212`).
+2. Latest Tag: The `latest` tag is always assigned to the most recent build.
+
+| Component | Source Archive | Primary Tag (Example) | Additional Tag |
+|---|---|---|---|
+| Web Client | `webcore.zip` | `parus/web:8.5.6.1.20260212` | `parus/web:latest` |
+| Microservices | `extra.zip` | `parus/service/[name]:8.5.6.1.20260212` | `parus/service/[name]:latest` |
+
+> [!NOTE]
+> If the -BuildDate parameter is omitted during execution, the image will be tagged only as :latest. If -BuildDate is provided, the engine creates both the specific versioned tag and the latest tag pointing to it.
 
 ## 🛠 Technical Implementation
 
