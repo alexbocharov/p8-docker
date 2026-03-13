@@ -9,15 +9,14 @@ param (
     [string]$Arch = "amd64"
 )
 
-# Detect container engine (Podman is preferred on Oracle Linux/RHEL)
+# Detect container engine (prefers podman on RHEL/Oracle Linux)
 $Engine = if (Get-Command podman -ErrorAction SilentlyContinue) { "podman" } else { "docker" }
 
 # Determine the primary tag suffix
-if ([string]::IsNullOrWhiteSpace($BuildDate)) {
-    $TagSuffix = "latest"
-} else {
-    $TagSuffix = "$Version.$BuildDate"
-}
+$TagSuffix = if ([string]::IsNullOrWhiteSpace($BuildDate)) { "latest" } else { "$Version.$BuildDate" }
+
+# List of services that require CryptoPro installation
+$CryptoRequired = @("web", "MqDocumentSigner", "CryptoService", "MqSedoFssService")
 
 $ExtraServices = @(
     "CryptoService", "EmbWebProxy", "MqActDocsService", "MqActDocsUploadService", 
@@ -27,78 +26,80 @@ $ExtraServices = @(
     "MqSedoFssService", "MqSmev3Service", "MqTaxonomyService"
 )
 
-function Get-DockerPath ([string]$Product) {
-    return "src/$Product/$DotNetVer/$OS/$Arch/Dockerfile"
+# Resolves Dockerfile path based on product and service name
+function Get-DockerPath ([string]$Product, [string]$ServiceName) {
+    $SubFolder = $ServiceName.ToLower()
+    
+    # Path for Web: src/web/8.0/...
+    # Path for Services: src/services/[name]/8.0/...
+    $Path = if ($Product -eq "web") {
+        "src/web/$DotNetVer/$OS/$Arch/Dockerfile"
+    } else {
+        "src/services/$SubFolder/$DotNetVer/$OS/$Arch/Dockerfile"
+    }
+    
+    if (-not (Test-Path $Path)) {
+        throw "CRITICAL: Dockerfile for '$ServiceName' not found at: $Path"
+    }
+    return $Path
 }
 
-function Build-Web {
-    $DockerPath = Get-DockerPath "web"
-    
-    if (-not (Test-Path "archives/webcore.zip")) {
-        Write-Error "CRITICAL: archives/webcore.zip not found!"
-        return
+function Build-Image ([string]$Product, [string]$ServiceName, [string]$ArchiveName) {
+    try {
+        $DockerPath = Get-DockerPath $Product $ServiceName
+        
+        if (-not (Test-Path "archives/$ArchiveName")) {
+            Write-Error "CRITICAL: archives/$ArchiveName not found!"
+            return
+        }
+
+        $ImageLower = $ServiceName.ToLower()
+        $ImageBase = if ($Product -eq "web") { "parus/web" } else { "parus/service/$ImageLower" }
+        $FullTag = "${ImageBase}:${TagSuffix}"
+        $LatestTag = "${ImageBase}:latest"
+
+        # Determine if CryptoPro should be installed via build-arg
+        $InstallCrypto = if ($CryptoRequired -contains $ServiceName) { "true" } else { "false" }
+
+        Write-Host "📦 Building [$ServiceName] via $Engine using $DockerPath" -ForegroundColor Cyan
+        Write-Host "   Context: CryptoPro=$InstallCrypto | Arch=$Arch" -ForegroundColor Gray
+
+        & $Engine build -f $DockerPath `
+            --build-arg SRC_FOLDER="${ServiceName}Unix" `
+            --build-arg FALLBACK_FOLDER="$ServiceName" `
+            --build-arg INSTALL_CRYPTO="$InstallCrypto" `
+            -t $FullTag .
+
+        # Tag as latest if a specific version was built successfully
+        if ($LASTEXITCODE -eq 0 -and $TagSuffix -ne "latest") {
+            Write-Host "🏷️ Tagging $LatestTag" -ForegroundColor Gray
+            & $Engine tag $FullTag $LatestTag
+        }
     }
-    if (-not (Test-Path $DockerPath)) {
-        Write-Error "CRITICAL: Dockerfile not found at $DockerPath"
-        return
-    }
-
-    $FullTag = "parus/web:${TagSuffix}"
-    $LatestTag = "parus/web:latest"
-
-    Write-Host "📦 Building WEB CLIENT via $Engine [$OS/$Arch] -> $FullTag" -ForegroundColor Green
-    & $Engine build -f $DockerPath -t $FullTag .
-
-    if ($LASTEXITCODE -eq 0 -and $TagSuffix -ne "latest") {
-        Write-Host "🏷️ Tagging $LatestTag" -ForegroundColor Gray
-        & $Engine tag $FullTag $LatestTag
-    }
-}
-
-function Build-ExtraService ([string]$ServiceName) {
-    $DockerPath = Get-DockerPath "services"
-
-    if (-not (Test-Path "archives/extra.zip")) {
-        Write-Error "CRITICAL: archives/extra.zip not found! Skipping $ServiceName."
-        return
-    }
-    if (-not (Test-Path $DockerPath)) {
-        Write-Error "CRITICAL: Dockerfile not found at $DockerPath"
-        return
-    }
-
-    $ImageName = $ServiceName.ToLower()
-    $FullTag = "parus/service/${ImageName}:${TagSuffix}"
-    $LatestTag = "parus/service/${ImageName}:latest"
-    
-    Write-Host "⚙️ Building SERVICE [$ServiceName] via $Engine [$OS/$Arch] -> $FullTag" -ForegroundColor Cyan
-    & $Engine build -f $DockerPath `
-        --build-arg SRC_FOLDER="${ServiceName}Unix" `
-        --build-arg FALLBACK_FOLDER="$ServiceName" `
-        -t $FullTag .
-
-    if ($LASTEXITCODE -eq 0 -and $TagSuffix -ne "latest") {
-        Write-Host "🏷️ Tagging $LatestTag" -ForegroundColor Gray
-        & $Engine tag $FullTag $LatestTag
+    catch {
+        Write-Error $_.Exception.Message
     }
 }
 
 # Execution Block
 try {
-    Write-Host "--- Start Parus 8 Build Engine (dotnet-docker style) ---" -ForegroundColor White
-    Write-Host "Engine: $Engine | Context: .NET $DotNetVer | OS $OS | Arch $Arch" -ForegroundColor Gray
+    Write-Host "--- Parus 8 Build Engine (Explicit Path Mode) ---" -ForegroundColor White
+    Write-Host "Engine: $Engine | TagMode: $TagSuffix | Context: .NET $DotNetVer/$OS" -ForegroundColor Gray
 
     switch ($Target) {
         "all" { 
-            Build-Web
-            foreach ($s in $ExtraServices) { Build-ExtraService $s }
+            Build-Image "web" "web" "webcore.zip"
+            foreach ($s in $ExtraServices) { Build-Image "service" $s "extra.zip" }
         }
         "web" { 
-            Build-Web 
+            Build-Image "web" "web" "webcore.zip"
         }
         Default { 
-            if ($ExtraServices -contains $Target) { Build-ExtraService $Target }
-            else { Write-Error "Target '$Target' not recognized in ExtraServices list." }
+            if ($ExtraServices -contains $Target) { 
+                Build-Image "service" $Target "extra.zip" 
+            } else { 
+                Write-Error "Target '$Target' not recognized in the services list." 
+            }
         }
     }
 }

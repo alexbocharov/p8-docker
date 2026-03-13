@@ -52,15 +52,18 @@ RUN find /tmp/s2/p8web/p8webcore/linux-x64 -name "*.pdb" -delete -o -name "*.md"
 FROM mcr.microsoft.com/dotnet/runtime-deps:8.0
 WORKDIR /app
 
+# Define the build argument (defaults to false)
+ARG INSTALL_CRYPTO=false
+
 # Install ICU libraries (Required for globalization/dates/currencies in Parus 8)
 RUN apt-get update && apt-get install -y --no-install-recommends libicu72 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install CryptoPro CSP (Optional: will be skipped if archives/tools are missing)
+# Install CryptoPro CSP (Conditional Installation)
 COPY tools/linux-amd64_deb.tgz* /tmp/tools/
-RUN if [ -f /tmp/tools/linux-amd64_deb.tgz ]; then \
+RUN if [ "$INSTALL_CRYPTO" = "true" ] && [ -f /tmp/tools/linux-amd64_deb.tgz ]; then \
         cd /tmp/tools && tar -xzf linux-amd64_deb.tgz && \
-        linux-amd64_deb/install.sh && \
+        ./linux-amd64_deb/install.sh && \
         # Create symlinks for common CryptoPro utilities
         for util in certmgr cpverify cryptcp csptest csptestf der2xer inittst wipefile; do \
             ln -s /opt/cprocsp/bin/amd64/$util /usr/bin/$util; done && \
@@ -70,10 +73,12 @@ RUN if [ -f /tmp/tools/linux-amd64_deb.tgz ]; then \
 # Copy the extracted binaries from the extractor stage
 COPY --from=extractor /tmp/s2/p8web/p8webcore/linux-x64 ./
 
-# Create symbolic links for CAPI libraries to ensure compatibility with .NET 8's expectations
-RUN ln -s /opt/cprocsp/lib/amd64/libcapi20.so crypt32.dll && \
-    ln -s /opt/cprocsp/lib/amd64/libcapi10.so advapi32.dll && \
-    ln -s /opt/cprocsp/lib/amd64/libcapi10.so kernel32.dll
+# Create symbolic links for CAPI libraries ONLY if CryptoPro was installed
+RUN if [ "$INSTALL_CRYPTO" = "true" ]; then \
+        ln -s /opt/cprocsp/lib/amd64/libcapi20.so crypt32.dll && \
+        ln -s /opt/cprocsp/lib/amd64/libcapi10.so advapi32.dll && \
+        ln -s /opt/cprocsp/lib/amd64/libcapi10.so kernel32.dll; \
+    fi
 
 # Copy and prepare the universal entrypoint script
 COPY scripts/entrypoint.sh ./entrypoint.sh
