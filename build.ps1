@@ -9,6 +9,9 @@ param (
     [string]$Arch = "amd64"
 )
 
+# Detect container engine (Podman is preferred on Oracle Linux/RHEL)
+$Engine = if (Get-Command podman -ErrorAction SilentlyContinue) { "podman" } else { "docker" }
+
 # Determine the primary tag suffix
 if ([string]::IsNullOrWhiteSpace($BuildDate)) {
     $TagSuffix = "latest"
@@ -43,13 +46,12 @@ function Build-Web {
     $FullTag = "parus/web:${TagSuffix}"
     $LatestTag = "parus/web:latest"
 
-    Write-Host "📦 Building WEB CLIENT [$OS/$Arch] -> $FullTag" -ForegroundColor Green
-    docker build -f $DockerPath -t $FullTag .
+    Write-Host "📦 Building WEB CLIENT via $Engine [$OS/$Arch] -> $FullTag" -ForegroundColor Green
+    & $Engine build -f $DockerPath -t $FullTag .
 
-    # Apply 'latest' tag if the build was successful and primary tag isn't already 'latest'
     if ($LASTEXITCODE -eq 0 -and $TagSuffix -ne "latest") {
         Write-Host "🏷️ Tagging $LatestTag" -ForegroundColor Gray
-        docker tag $FullTag $LatestTag
+        & $Engine tag $FullTag $LatestTag
     }
 }
 
@@ -69,22 +71,22 @@ function Build-ExtraService ([string]$ServiceName) {
     $FullTag = "parus/service/${ImageName}:${TagSuffix}"
     $LatestTag = "parus/service/${ImageName}:latest"
     
-    Write-Host "⚙️ Building SERVICE [$ServiceName] [$OS/$Arch] -> $FullTag" -ForegroundColor Cyan
-    docker build -f $DockerPath `
+    Write-Host "⚙️ Building SERVICE [$ServiceName] via $Engine [$OS/$Arch] -> $FullTag" -ForegroundColor Cyan
+    & $Engine build -f $DockerPath `
         --build-arg SRC_FOLDER="${ServiceName}Unix" `
         --build-arg FALLBACK_FOLDER="$ServiceName" `
         -t $FullTag .
 
     if ($LASTEXITCODE -eq 0 -and $TagSuffix -ne "latest") {
         Write-Host "🏷️ Tagging $LatestTag" -ForegroundColor Gray
-        docker tag $FullTag $LatestTag
+        & $Engine tag $FullTag $LatestTag
     }
 }
 
 # Execution Block
 try {
     Write-Host "--- Start Parus 8 Build Engine (dotnet-docker style) ---" -ForegroundColor White
-    Write-Host "Context: .NET $DotNetVer | OS $OS | Arch $Arch | TagMode: $TagSuffix" -ForegroundColor Gray
+    Write-Host "Engine: $Engine | Context: .NET $DotNetVer | OS $OS | Arch $Arch" -ForegroundColor Gray
 
     switch ($Target) {
         "all" { 
@@ -102,6 +104,6 @@ try {
 }
 finally {
     Write-Host "`n🧹 Cleaning up intermediate build layers..." -ForegroundColor Yellow
-    docker image prune -f
+    & $Engine image prune -f
     Write-Host "🚀 Build process finished!" -ForegroundColor Green
 }

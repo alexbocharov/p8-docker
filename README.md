@@ -85,9 +85,13 @@ The engine supports two tagging strategies:
 
 ## ⚙️ Requirements
 
-* Docker Engine 24.0+
-* PowerShell Core 7.0+
-* Storage: At least 10GB of free space is recommended for intermediate extraction layers during full builds.
+* **Container Engine:** Docker Engine 24.0+, Podman 4.0+, or Docker Desktop
+* **PowerShell Core:** 7.0+ (Install via `brew install --cask powershell` on macOS)
+* **Storage:** At least 10GB of free space is recommended for intermediate extraction layers during full builds.
+* **Operating Systems:**
+  * **Linux:** Ubuntu, Debian, Oracle Linux, RHEL, etc.
+  * **macOS:** Intel or Apple Silicon (via Docker Desktop, OrbStack, or Podman)
+  * **Windows:** via WSL2 (Ubuntu/Debian) or PowerShell Core directly
 
 ## 🤝 **Community Standards**
 We value respectful and constructive interactions. Please refer to our [Code of Conduct](CODE_OF_CONDUCT.md) for detailed guidelines on community behavior.
