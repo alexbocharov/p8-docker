@@ -19,16 +19,17 @@ The repository follows a hierarchical structure for better scalability and multi
 
 ```text
 /p8-docker
-├── archives/               # [Drop Zone] Place webcore.zip and extra.zip here
-├── tools/                  # [Drop Zone] Place linux-amd64_deb.tgz here
+├── archives/                                   # [Drop Zone] Place webcore.zip and extra.zip here
+├── tools/                                      # [Drop Zone] Place linux-amd64_deb.tgz here
 ├── src/
-│   ├── web/                # Web Client product logic
-│   │   └── 8.0/bookworm-slim/amd64/Dockerfile
-│   └── service/            # Microservices product logic
-│       └── 8.0/bookworm-slim/amd64/Dockerfile
-├── build.ps1               # Unified Build Engine (PowerShell Core)
-├── .gitignore              # Prevents binaries from being committed to Git
-└── .dockerignore           # Optimizes Docker build context by excluding junk
+│   ├── web/                                    # Web Client product logic
+│   │   └── 8.0/bookworm-slim/amd64/Dockerfile  # Default Debian image (clean tags point here)
+│   │   └── 8.0/redos-ubi8/amd64/Dockerfile     # RED OS 8 image (tagged with -redos-ubi8 suffix)
+│   └── service/                                # Microservices product logic
+│       └── 8.0/bookworm-slim/amd64/Dockerfile  # Default Debian image for services
+├── build.ps1                                   # Unified Build Engine (PowerShell Core)
+├── .gitignore                                  # Prevents binaries from being committed to Git
+└── .dockerignore                               # Optimizes Docker build context by excluding junk
 ```
 
 ## 🚀 Getting Started
@@ -46,17 +47,17 @@ The `build.ps1` script handles versioning, lowercase naming, and folder logic (p
 
 **Build with specific version and date (tags as both `version.date` and `latest`):**
 ```pwsh
-./build.ps1 -Version "8.5.6.1" -BuildDate "20260212" -Target "all"
+./build.ps1 -Version "8.561.0.0" -BuildDate "20260212" -Target "all"
 ```
 
 **Build with latest tag only (omitting BuildDate):**
 ```pwsh
-./build.ps1 -Version "8.5.6.1" -Target "all"
+./build.ps1 -Version "8.561.0.0" -Target "all"
 ```
 
 **Build a specific service (e.g., MqDocumentSigner):**
 ```pwsh
-./build.ps1 -Version "8.5.6.1" -Target "MqDocumentSigner"
+./build.ps1 -Version "8.561.0.0" -Target "MqDocumentSigner"
 ```
 
 ## 🏗 Image Naming & Tagging
