@@ -1,23 +1,21 @@
 #!/usr/bin/env pwsh
 [CmdletBinding()]
 param (
-    [Parameter(Mandatory=$true)][string]$Version,    # e.g. 8.5.6.1
-    [Parameter(Mandatory=$false)][string]$BuildDate, # e.g. 20260212 (Optional)
+    [Parameter(Mandatory=$true)][string]$Version,    # e.g., 8.561.0.0
+    [Parameter(Mandatory=$false)][string]$BuildDate, # e.g., 20260212 (Optional)
     [Parameter(Mandatory=$false)][string]$Target = "all",
     [string]$DotNetVer = "8.0",
-    [string]$OS = "bookworm-slim",
+    [string]$OS = "bookworm-slim",                   # Default OS
     [string]$Arch = "amd64"
 )
 
-# Detect container engine (prefers podman on RHEL/Oracle Linux)
+# Detect container engine (prefers podman on RHEL/Oracle Linux systems)
 $Engine = if (Get-Command podman -ErrorAction SilentlyContinue) { "podman" } else { "docker" }
 
-# Determine the primary tag suffix
-$TagSuffix = if ([string]::IsNullOrWhiteSpace($BuildDate)) { "latest" } else { "$Version.$BuildDate" }
-
-# List of services that require CryptoPro installation
+# List of services requiring CryptoPro CSP installation
 $CryptoRequired = @("web", "MqDocumentSigner", "CryptoService", "MqSedoFssService")
 
+# List of additional background services
 $ExtraServices = @(
     "CryptoService", "EmbWebProxy", "MqActDocsService", "MqActDocsUploadService", 
     "MqAsOosService", "MqAtolService", "MqDocumentSigner", "MqFinancialDocsService", 
@@ -26,12 +24,11 @@ $ExtraServices = @(
     "MqSedoFssService", "MqSmev3Service", "MqTaxonomyService"
 )
 
-# Resolves Dockerfile path based on product and service name
+# Resolves Dockerfile path based on product type and service name
 function Get-DockerPath ([string]$Product, [string]$ServiceName) {
     $SubFolder = $ServiceName.ToLower()
     
-    # Path for Web: src/web/8.0/...
-    # Path for Services: src/services/[name]/8.0/...
+    # Pathing: src/[web|services]/[version]/[os]/[arch]/Dockerfile
     $Path = if ($Product -eq "web") {
         "src/web/$DotNetVer/$OS/$Arch/Dockerfile"
     } else {
@@ -44,47 +41,75 @@ function Get-DockerPath ([string]$Product, [string]$ServiceName) {
     return $Path
 }
 
+# Handles the build process and multi-tagging logic
 function Build-Image ([string]$Product, [string]$ServiceName, [string]$ArchiveName) {
     try {
         $DockerPath = Get-DockerPath $Product $ServiceName
         
         if (-not (Test-Path "archives/$ArchiveName")) {
-            Write-Error "CRITICAL: archives/$ArchiveName not found!"
+            Write-Error "CRITICAL: archives/$ArchiveName missing!"
             return
         }
 
         $ImageLower = $ServiceName.ToLower()
         $ImageBase = if ($Product -eq "web") { "parus/web" } else { "parus/service/$ImageLower" }
-        $FullTag = "${ImageBase}:${TagSuffix}"
-        $LatestTag = "${ImageBase}:latest"
+        
+        # Multi-Tag Logic Generation
+        $TagList = New-Object System.Collections.Generic.List[string]
+        
+        # Version components (8.561.0.0 -> 8.561)
+        $VerParts = $Version.Split('.')
+        $ShortVer = if ($VerParts.Count -ge 2) { "$($VerParts[0]).$($VerParts[1])" } else { $Version }
+        $FullVersion = if ([string]::IsNullOrWhiteSpace($BuildDate)) { $Version } else { "$Version.$BuildDate" }
 
-        # Determine if CryptoPro should be installed via build-arg
+        # 1. Primary OS-specific tags (e.g., 8.561.0.0-redos-ubi8)
+        # We add these first so the build command uses a specific tag as its primary reference
+        $TagList.Add("${FullVersion}-${OS}")
+        $TagList.Add("${ShortVer}-${OS}")
+        $TagList.Add($OS)
+
+        # 2. "Clean" version tags (ONLY for the default OS to avoid overwriting)
+        if ($OS -eq "bookworm-slim") {
+            $TagList.Add($FullVersion) # e.g., parus/web:8.561.0.0
+            $TagList.Add($ShortVer)    # e.g., parus/web:8.561
+            $TagList.Add("latest")      # e.g., parus/web:latest
+        }
+
+        # Build Arguments
         $InstallCrypto = if ($CryptoRequired -contains $ServiceName) { "true" } else { "false" }
+        $PrimaryTag = "${ImageBase}:$($TagList[0])"
 
-        Write-Host "📦 Building [$ServiceName] via $Engine using $DockerPath" -ForegroundColor Cyan
+        Write-Host "📦 Building [$ServiceName] via $Engine" -ForegroundColor Cyan
+        Write-Host "   Tags: $($TagList -join ', ')" -ForegroundColor Gray
         Write-Host "   Context: CryptoPro=$InstallCrypto | Arch=$Arch" -ForegroundColor Gray
 
+        # Execution
         & $Engine build -f $DockerPath `
             --build-arg SRC_FOLDER="${ServiceName}Unix" `
             --build-arg FALLBACK_FOLDER="$ServiceName" `
             --build-arg INSTALL_CRYPTO="$InstallCrypto" `
-            -t $FullTag .
+            -t $PrimaryTag .
 
-        # Tag as latest if a specific version was built successfully
-        if ($LASTEXITCODE -eq 0 -and $TagSuffix -ne "latest") {
-            Write-Host "🏷️ Tagging $LatestTag" -ForegroundColor Gray
-            & $Engine tag $FullTag $LatestTag
+        if ($LASTEXITCODE -eq 0) {
+            # Apply all additional tags from the generated list
+            for ($i = 1; $i -lt $TagList.Count; $i++) {
+                $AdditionalTag = "${ImageBase}:$($TagList[$i])"
+                Write-Host "🏷️ Tagging $AdditionalTag" -ForegroundColor Gray
+                & $Engine tag $PrimaryTag $AdditionalTag
+            }
+        } else {
+            throw "Build process exited with code $LASTEXITCODE"
         }
     }
     catch {
-        Write-Error $_.Exception.Message
+        Write-Error "Failed to build ${ServiceName}: $($_.Exception.Message)"
     }
 }
 
 # Execution Block
 try {
-    Write-Host "--- Parus 8 Build Engine (Explicit Path Mode) ---" -ForegroundColor White
-    Write-Host "Engine: $Engine | TagMode: $TagSuffix | Context: .NET $DotNetVer/$OS" -ForegroundColor Gray
+    Write-Host "`n--- Parus 8 Build Engine ---" -ForegroundColor White
+    Write-Host "Engine: $Engine | OS: $OS | .NET: $DotNetVer" -ForegroundColor Gray
 
     switch ($Target) {
         "all" { 
@@ -98,7 +123,7 @@ try {
             if ($ExtraServices -contains $Target) { 
                 Build-Image "service" $Target "extra.zip" 
             } else { 
-                Write-Error "Target '$Target' not recognized in the services list." 
+                Write-Error "Target '$Target' not recognized." 
             }
         }
     }

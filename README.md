@@ -61,19 +61,35 @@ The `build.ps1` script handles versioning, lowercase naming, and folder logic (p
 
 ## 🏗 Image Naming & Tagging
 
-Images are tagged using the format: parus/[type]/[name]:[suffix].
+The build engine uses a multi-tier tagging strategy. **"Clean" tags** (without an OS suffix) are mapped to the default **Debian (bookworm-slim)** image for optimal size.
 
-The engine supports two tagging strategies:
-1. Full Tag: Combined `[version].[date]` (e.g., `8.5.6.1.20260212`).
-2. Latest Tag: The `latest` tag is always assigned to the most recent build.
+### Supported Tags & OS Mapping
 
-| Component | Source Archive | Primary Tag (Example) | Additional Tag |
-|---|---|---|---|
-| Web Client | `webcore.zip` | `parus/web:8.5.6.1.20260212` | `parus/web:latest` |
-| Microservices | `extra.zip` | `parus/service/[name]:8.5.6.1.20260212` | `parus/service/[name]:latest` |
 
-> [!NOTE]
-> If the `-BuildDate` parameter is omitted during execution, the image will be tagged only as `:latest`. If `-BuildDate` is provided, the engine creates both the specific versioned tag and the latest tag pointing to it.
+| OS Flavor | Version + Date Tag (Example) | Short Version Tag | OS Alias / Latest | Default |
+| :--- | :--- | :--- | :--- | :---: |
+| **Debian 12** | `8.561.0.0.20260212` | `8.561` | `bookworm-slim`, `latest` | ✅ |
+| **RED OS 8** | `8.561.0.0.20260212-redos-ubi8` | `8.561-redos-ubi8` | `redos-ubi8` | ❌ |
+
+### Tagging Logic
+- **Full Versioning:** If `-BuildDate` is provided, images are tagged as `[Version].[BuildDate]`.
+- **OS Specifics:** Use the `-OS` parameter to build for different environments. Non-default OS images always append the OS name to the tag (e.g., `-redos-ubi8`).
+- **Short Tags:** The engine automatically creates a major.minor tag (e.g., `8.561`) for easier updates.
+
+### Examples
+
+**Pull the latest stable (Debian):**
+```bash
+docker pull parus/web:latest
+```
+
+**Pull a specific certified build (RED OS):**
+```bash
+docker pull parus/web:8.561.0.0.20260212-redos-ubi8
+```
+
+> [!TIP]
+> If you omit -BuildDate, the engine will skip the date-stamped tags and update the latest and [OS] aliases only.
 
 ## 🛠 Technical Implementation
 
